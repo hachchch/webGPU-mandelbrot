@@ -1,5 +1,6 @@
 let product=2;
-let N=100;
+let t=-50*Math.PI;
+let N=25;
 let scale=1;
 let range={x:[-1,1],y:[-1,1]};
 let offset={x:0,y:0};
@@ -33,7 +34,7 @@ ctx.configure({
   colorAttachments: [{
      view: ctx.getCurrentTexture().createView(),
      loadOp: "clear",
-      clearValue: { r: 0, g: 0, b: 0.4, a: 1 },
+      clearValue: { r: 0, g: 0, b: 0.4, a: 1 }, // New line
      storeOp: "store",
   }]
 });
@@ -41,14 +42,17 @@ ctx.configure({
     const commandBuffer = encoder.finish();
     device.queue.submit([commandBuffer]);
     draw();
+    translate();
 }
 init();
 function draw(){
     const vertices = new Float32Array([
-  -1, -1,
+//   X,    Y,
+  -1, -1, // Triangle 1 (Blue)
    1, -1,
    1,  1,
-  -1, -1,
+
+  -1, -1, // Triangle 2 (Red)
    1,  1,
   -1,  1,
 ]);
@@ -57,7 +61,7 @@ function draw(){
   size: vertices.byteLength,
   usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
 });
-    device.queue.writeBuffer(vertexBuffer,0, vertices);
+    device.queue.writeBuffer(vertexBuffer, /*bufferOffset=*/0, vertices);
     const vertexBufferLayout = {
   arrayStride: 8,
   attributes: [{
@@ -69,7 +73,8 @@ function draw(){
     //シェーダーの定義
     const cellShaderModule = device.createShaderModule({
   label: 'Cell shader',
-  code:  `struct VertexInput {
+  code: `
+  struct VertexInput {
   @location(0) pos: vec2f,
   @builtin(instance_index) instance: u32,
 };
@@ -128,7 +133,7 @@ let range=vec4f(${range.x[0]/scale},${range.x[1]/scale},${range.y[0]/scale},${ra
   }
   var color:f32=(i/N);
   let colorScheme=${colorScheme};
-  if(i==N && colorScheme!=1){
+  if(i==ceil(N) && colorScheme!=1){
   color=0;
   }
   var res=vec4f(0);
@@ -153,7 +158,8 @@ let range=vec4f(${range.x[0]/scale},${range.x[1]/scale},${range.y[0]/scale},${ra
   res=vec4f(color,color,sin(color*${Math.PI}),1);
   }
   return res;
-}`
+}
+  `
 });
     const cellPipeline = device.createRenderPipeline({
   label: "Cell pipeline",
@@ -171,6 +177,7 @@ let range=vec4f(${range.x[0]/scale},${range.x[1]/scale},${range.y[0]/scale},${ra
     }]
   }
 });
+    //passを初期化
 encoder=device.createCommandEncoder();
 pass=encoder.beginRenderPass({
     colorAttachments: [{
@@ -200,7 +207,7 @@ pass.setPipeline(cellPipeline);
 pass.setVertexBuffer(0, vertexBuffer);
 pass.setBindGroup(0, bindGroup)
 pass.draw(vertices.length / 2, GRID_SIZE * GRID_SIZE);
-pass.end()
+pass.end();
 device.queue.submit([encoder.finish()]);
 }
 window.addEventListener("keydown",e=>{
@@ -256,3 +263,11 @@ canvas.addEventListener("click",e=>{
     offset.x=(m.x/canvas.width)*(R[1]-R[0])+R[0]+offset.x;
     draw();
 });
+//冪乗アニメーション
+function translate(){
+    product=((Math.sin(t/100)+1)/2)+2;
+    //N=3*(Math.sin(t/10)+1);
+    draw();
+    t++;
+    requestAnimationFrame(translate);
+}
